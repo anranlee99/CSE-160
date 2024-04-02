@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Draw a blue rectangle (canvas version)</title>
+</head>
+<body onload="main()">
+    <canvas id="example" width="400" height="400">
+        Please use a browser that supports "canvas"
+    </canvas>
+    <br>
+    <label >v1</label>
+    <label for="v1_input_x">x:</label>
+    <input id="v1_input_x" type="text">
+    <label for="v1_input_y">y:</label>
+    <input id="v1_input_y" type="text">
+    <br>
+    <label >v2</label>
+    <label for="v2_input_x">x:</label>
+    <input id="v2_input_x" type="text">
+    <label for="v2_input_y">y:</label>
+    <input id="v2_input_y" type="text">
+    <br>
+    <button onclick="handleDrawEvent()">Draw</button>
+
+    <br>
+    <br>
+
+    <label for="Operation">Operation: </label>
+    <select id="Operation">
+        <option value="add">add</option>
+        <option value="sub">sub</option>
+        <option value="mul">mul</option>
+        <option value="div">div</option>
+    </select>
+    <label for="scalar">Scalar:</label>
+    <input id="scalar" type="text">
+    <br>
+    <button onclick="handleOperationEvent()">Draw</button>
+    <script src="asg0.js"></script>
+    <script src="./lib/cuon-matrix-cse160.js"></script>
+</body>
+</html>
