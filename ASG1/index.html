@@ -5,10 +5,29 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vite + TS</title>
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="app">
-      <canvas id="webgl2" width="400" height="400">
+      <canvas id="webgl" width="400" height="400"></canvas>
+      <p>
+
+        Red:<input type="range" min="0" max="100" value="50" id="redSlider"/> <br>
+        Green:<input type="range" min="0" max="100" value="50" id="greenSlider"/> <br>
+        Blue:<input type="range" min="0" max="100" value="50" id="blueSlider"/> <br>
+        Alpha:<input type="range" min="0" max="100" value="100" id="alphaSlider"/> <br>
+        Brush Size:<input type="range" min="1" max="10" value="1" id="brushSize"/> <br>
+        Brush Type:
+        <select id="brushType">
+          <option value="1">Square</option>
+          <option value="2">Circle</option>
+          <option value="3">Triangle</option>
+        </select>
+        <button id="clearButton">Clear</button>
+      </p>
+        
+
+
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
