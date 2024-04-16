@@ -1,31 +1,13 @@
 class Point {
    constructor() {
       this.shape = 0;
-      this.position = [0.0, 0.0, 0.0];
+      this.position = [0.0, 0.0];
       this.color = [1.0, 1.0, 1.0, 1.0];
       this.size = 5.0;
-      this.outline = 0;
+      this.outline = 0; // 0 for filled, 1 for outlined
    }
 
-   render() {
-      const xy = this.position;
-      const rgba = this.color;
-      const size = this.size;
-      // Pass the color of a point to a_Position variable
-      gl.vertexAttrib3f(a_Position, xy[0], xy[1], 0.0);
-      // Pass the color of a point to u_FragColor variable
-      gl.uniform4f(u_FragColor, rgba[0], rgba[1], rgba[2], rgba[3]);
-
-      // Pass the size tp u_Size
-      gl.uniform1f(u_Size, size);
-
-      const d = size / 20.0;
-      draw_primitive_triangle([xy[0] - d / 2, xy[1] - d / 2, xy[0] - d / 2, xy[1] + d / 2, xy[0] + d / 2, xy[1] + d / 2], this.outline);
-      draw_primitive_triangle([xy[0] - d / 2, xy[1] - d / 2, xy[0] + d / 2, xy[1] - d / 2, xy[0] + d / 2, xy[1] + d / 2], this.outline);
-
-   }
    draw() {
-      console.log(this.shape);
       switch (this.shape) {
          case 0:
             this.drawPoint();
@@ -36,82 +18,64 @@ class Point {
          case 2:
             this.drawTriangle();
             break;
+         default:
+            console.log("Invalid shape type");
       }
-
    }
+
    drawPoint() {
-      const xy = this.position;
-      const rgba = this.color;
-      const size = this.size;
-      // Pass the color of a point to a_Position variable
-      gl.vertexAttrib3f(a_Position, xy[0], xy[1], 0.0);
-      // Pass the color of a point to u_FragColor variable
-      gl.uniform4f(u_FragColor, rgba[0], rgba[1], rgba[2], rgba[3]);
-
-      // Pass the size tp u_Size
-      gl.uniform1f(u_Size, size);
-
+      this.setupDrawing();
       const d = size / 20.0;
-      draw_primitive_triangle([xy[0] - d / 2, xy[1] - d / 2, xy[0] - d / 2, xy[1] + d / 2, xy[0] + d / 2, xy[1] + d / 2]);
-      draw_primitive_triangle([xy[0] - d / 2, xy[1] - d / 2, xy[0] + d / 2, xy[1] - d / 2, xy[0] + d / 2, xy[1] + d / 2]);
+      draw_primitive_triangle([
+         this.position[0] - d / 2, this.position[1] - d / 2,
+         this.position[0] - d / 2, this.position[1] + d / 2,
+         this.position[0] + d / 2, this.position[1] + d / 2
+     ], this.outline);
+     draw_primitive_triangle([
+         this.position[0] - d / 2, this.position[1] - d / 2,
+         this.position[0] + d / 2, this.position[1] - d / 2,
+         this.position[0] + d / 2, this.position[1] + d / 2
+     ], this.outline);
    }
 
    drawCircle() {
-      const xy = this.position;
-      const rgba = this.color;
-      const size = this.size;
-      // Pass the color of a point to a_Position variable
-      gl.vertexAttrib3f(a_Position, xy[0], xy[1], 0.0);
-      // Pass the color of a point to u_FragColor variable
-      gl.uniform4f(u_FragColor, rgba[0], rgba[1], rgba[2], rgba[3]);
-
-      // Pass the size tp u_Size
-      gl.uniform1f(u_Size, size);
-
-      const d = size / 20.0;
-      draw_primitive_triangle([xy[0] - d / 2, xy[1] - d / 2, xy[0] - d / 2, xy[1] + d / 2, xy[0] + d / 2, xy[1] + d / 2]);
-      draw_primitive_triangle([xy[0] - d / 2, xy[1] - d / 2, xy[0] + d / 2, xy[1] - d / 2, xy[0] + d / 2, xy[1] + d / 2]); 
+      this.setupDrawing();
+      // Additional circle drawing logic here (for now, using triangles)
    }
 
-   drawTriangle(){
-      var xy = this.position;
-      var rgba = this.color;
-      var size = this.size;
+   drawTriangle() {
+      this.setupDrawing();
+      const d = this.size / 20.0;
+      draw_primitive_triangle([
+         this.position[0] - d / 2, this.position[1] - d / 2,
+         this.position[0] + d / 2, this.position[1] - d / 2,
+         this.position[0], this.position[1] + d / 2
+      ], this.outline);
+   }
 
-      // Pass color to u_FragColor
-      gl.uniform4f(u_FragColor, rgba[0], rgba[1], rgba[2], rgba[3]);
-
-      // Pass the size tp u_Size
-      gl.uniform1f(u_Size, size);
-
-      var d = size/20.0;
-      draw_primitive_triangle([xy[0]-d/2, xy[1]-d/2, xy[0]+d/2, xy[1]-d/2, xy[0], xy[1]+d/2], this.outline);
-
+   setupDrawing() {
+      gl.vertexAttrib3f(a_Position, this.position[0], this.position[1], 0.0);
+      gl.uniform4f(u_FragColor, ...this.color);
+      gl.uniform1f(u_Size, this.size);
    }
 }
 
-function draw_primitive_triangle(vertices) {
-   var n = 3;
-   var vertexBuffer = gl.createBuffer();
+function draw_primitive_triangle(vertices, outline) {
+   const n = 3; // Number of vertices
+   const vertexBuffer = gl.createBuffer();
    if (!vertexBuffer) {
       console.log('Failed to create the buffer object');
       return -1;
    }
 
-   // Bind the buffer object to target
    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-   // Write date into the buffer object
    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.DYNAMIC_DRAW);
-
-   // Assign the buffer object to a_Position variable
    gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, 0, 0);
-
-   // Enable the assignment to a_Position variable
    gl.enableVertexAttribArray(a_Position);
 
-   gl.drawArrays(gl.TRIANGLES, 0, n);
-   // if (outline == 0) {
-   // } else if (outline == 1) {
-   //    gl.drawArrays(gl.LINE_LOOP, 0, n);
-   // }
+   if (outline === 0) {
+      gl.drawArrays(gl.TRIANGLES, 0, n);
+   } else if (outline === 1) {
+      gl.drawArrays(gl.LINE_LOOP, 0, n);
+   }
 }
