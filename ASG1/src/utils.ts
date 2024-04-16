@@ -69,6 +69,10 @@ interface Config{
     shape: HTMLSelectElement;
     clear: HTMLButtonElement;
     size: HTMLInputElement;
+    segments: HTMLInputElement;
+    undo: HTMLButtonElement;
+    redo: HTMLButtonElement;
+    export: HTMLButtonElement;
     
 }
 export function initUI(){
@@ -80,13 +84,22 @@ export function initUI(){
     const brushSize = document.querySelector('#brushSize') as HTMLInputElement;
     const brushType = document.querySelector('#brushType') as HTMLSelectElement;
     const clearButton = document.querySelector('#clearButton') as HTMLButtonElement;
+    const segmentSlider = document.querySelector('#segmentSlider') as HTMLInputElement;
+    const undoButton = document.querySelector('#undoButton') as HTMLButtonElement;
+    const redoButton = document.querySelector('#redoButton') as HTMLButtonElement;
+    const exportButton = document.querySelector('#exportButton') as HTMLButtonElement;
+
 
     
     const config: Config = {
         color: [redSlider, greenSlider, blueSlider, alphaSlider],
         shape: brushType,
         clear: clearButton,
-        size: brushSize
+        size: brushSize,
+        segments: segmentSlider,
+        undo: undoButton,
+        redo: redoButton,
+        export: exportButton
     }
 
     return config;

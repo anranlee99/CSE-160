@@ -1,12 +1,8 @@
 import { createProgram, initUI, initWebGL } from './utils';
-
-
-
-
 enum Shape {
   SQUARE = 1,
-  CIRCLE = 2,
-  TRIANGLE = 3
+  TRIANGLE = 2,
+  CIRCLE = 3,
 };
 interface Point {
   x: number;
@@ -38,7 +34,6 @@ class Buffer {
   }
 
   addPoint(x: number, y: number, r: number, g: number, b: number, a: number, size: number, shape: number) {
-    console.log(this.arr)
     //we need to extend the array
     if (this.count && this.count % 2040 == 0) {
       this.poolIndex++;
@@ -74,6 +69,14 @@ class Buffer {
       size: this.arr[this.poolIndex][baseIndex + 6],
       shape: this.arr[this.poolIndex][baseIndex + 7]
     };
+  }
+
+  removeLastPoint() {
+    if (this.count === 0) {
+      return;
+    }
+    this.count -= this.offset;
+    this.numPoints--;
   }
 
   clear() {
@@ -127,32 +130,21 @@ if (!canvas) {
   throw new Error('Failed to get canvas element');
 }
 const gl = initWebGL(canvas);
-
 const config = initUI();
-
 const program = createProgram(gl);
 
-
-
 let isDrawing = false;
-
-
-
-
-
-
 
 class Paint {
   gl: WebGLRenderingContext;
   program: WebGLProgram;
   points: Float32Array = new Float32Array(1000);
-  numPoints: number = 0;
 
   a_Position: number;
   u_FragColor: WebGLUniformLocation;
   u_Size: WebGLUniformLocation;
-  offset: number;
   buff: Buffer = new Buffer();
+  redoBuff: Buffer = new Buffer();  
 
   constructor(gl: WebGLRenderingContext, program: WebGLProgram) {
     this.gl = gl;
@@ -174,7 +166,6 @@ class Paint {
     gl.clearColor(1, 1, 1, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    this.offset = 8;
 
 
   }
@@ -183,16 +174,7 @@ class Paint {
     this.buff.addPoint(point.x, point.y, point.r, point.g, point.b, point.a, point.size, point.shape);
   }
 
-  reset() {
-    this.points.fill(0, 0, 1000 * 10);
-    this.numPoints = 0;
-    this.gl.bufferData(this.gl.ARRAY_BUFFER, this.points, this.gl.DYNAMIC_DRAW);
-  }
-
   draw() {
-    // this.gl.clearColor(1, 1, 1, 1);
-    // this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-
     if (this.buff.numPoints > 0) {
       // Only draw the most recent point
       const lastPoint = this.buff.getLastPoint();
@@ -200,6 +182,7 @@ class Paint {
     }
   }
   drawSquare(point: Point) {
+    //@ts-ignore
     const { x, y, r, g, b, a, size, shape } = point;
 
     this.gl.vertexAttrib3f(this.a_Position, x, y, 0.0);
@@ -234,7 +217,7 @@ class Paint {
     // Draw the square using two triangles
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6); // 6 vertices (3 per triangle * 2)
   }
-  drawCircle(point: Point) {
+  drawTriangle(point: Point) {
     const { x, y, r, g, b, a, size, shape } = point;
     console.log({ x, y, r, g, b, a, size, shape });
 
@@ -255,16 +238,98 @@ class Paint {
     this.gl.enableVertexAttribArray(this.a_Position);
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
   }
+
+  undo() {
+    const lastPoint = this.buff.getLastPoint();
+    if (lastPoint) {
+      this.buff.removeLastPoint();
+      this.redoBuff.addPoint(lastPoint.x, lastPoint.y, lastPoint.r, lastPoint.g, lastPoint.b, lastPoint.a, lastPoint.size, lastPoint.shape);
+      this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+      for (const point of this.buff) {
+        this.drawPoint(point as Point);
+      }
+    }
+    this.buff.removeLastPoint();
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+    for (const point of this.buff) {
+      this.drawPoint(point as Point);
+    }
+  }
+  // there's a bug with this lol
+  redo(){
+    const lastPoint = this.redoBuff.getLastPoint();
+    if (lastPoint) {
+      this.redoBuff.removeLastPoint();
+      this.buff.addPoint(lastPoint.x, lastPoint.y, lastPoint.r, lastPoint.g, lastPoint.b, lastPoint.a, lastPoint.size, lastPoint.shape);
+      this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+      for (const point of this.buff) {
+        this.drawPoint(point as Point);
+      }
+    }
+  }
+
+  export(){
+    const canvas = document.getElementById('webgl') as HTMLCanvasElement;
+    const dataURL = canvas.toDataURL();
+    const a = document.createElement('a');
+    a.href = dataURL;
+    a.download = 'canvas.png';
+    a.click();
+  }
+
+
+  drawCircle(point: Point) {
+    const { x, y, r, g, b, a, size } = point;
+    const segments = parseInt(config.segments.value); // Ensure this is set appropriately
+  
+    // Calculate the angle between each segment
+    const angleStep = Math.PI * 2 / segments;
+    const vertices = new Float32Array(3 * (segments + 2)); // +2 for the center and the loop back
+  
+    // Center vertex for TRIANGLE_FAN
+    vertices[0] = x; // x
+    vertices[1] = y; // y
+    vertices[2] = 0.0; // z
+  
+    // Calculate vertices around the circle
+    for (let i = 1; i <= segments + 1; i++) {
+      vertices[i * 3 + 0] = x + size * Math.cos(angleStep * (i - 1)); // x
+      vertices[i * 3 + 1] = y + size * Math.sin(angleStep * (i - 1)); // y
+      vertices[i * 3 + 2] = 0.0; // z
+    }
+  
+    // Create buffer and upload data
+    const buff = this.gl.createBuffer();
+    if (!buff) throw new Error('Failed to create buffer');
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buff);
+    this.gl.bufferData(this.gl.ARRAY_BUFFER, vertices, this.gl.STATIC_DRAW);
+  
+    // Set up vertex attributes
+    this.gl.vertexAttribPointer(this.a_Position, 3, this.gl.FLOAT, false, 0, 0);
+    this.gl.enableVertexAttribArray(this.a_Position);
+  
+    // Set uniform for color
+    this.gl.uniform4f(this.u_FragColor, r, g, b, a);
+    this.gl.uniform1f(this.u_Size, size);
+  
+    // Draw the circle using triangle fan
+    this.gl.drawArrays(this.gl.TRIANGLE_FAN, 0, segments + 2);
+  }
+  
   drawPoint(point: Point) {
     switch (point.shape) {
       case Shape.SQUARE:
         this.drawSquare(point);
+        break;
+      case Shape.TRIANGLE:
+        this.drawTriangle(point);
         break;
       case Shape.CIRCLE:
         this.drawCircle(point);
         break;
     }
   }
+  
 }
 
 
@@ -320,8 +385,18 @@ config.clear.addEventListener('mousedown', function () {
 
   gl.clearColor(1, 1, 1, 1);
   gl.clear(gl.COLOR_BUFFER_BIT);
-  console.log('clear');
-  paint.numPoints = 0;
   paint.buff.clear();
   paint.draw();
+});
+
+config.undo.addEventListener('mousedown', function () {
+  paint.undo();
+});
+
+config.redo.addEventListener('mousedown', function () {
+  paint.redo();
+});
+
+config.export.addEventListener('mousedown', function () {
+  paint.export();
 });
