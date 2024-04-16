@@ -1,19 +1,4 @@
-import { initUI, initWebGL } from './setup';
-import { createProgram } from './utils';
-
-const canvas = document.getElementById('webgl') as HTMLCanvasElement;
-if (!canvas) {
-  throw new Error('Failed to get canvas element');
-}
-const gl = initWebGL(canvas);
-
-const config = initUI();
-
-const program = createProgram(gl);
-
-
-
-let isDrawing = false;
+import { createProgram, initUI, initWebGL } from './utils';
 
 
 
@@ -35,6 +20,128 @@ interface Point {
 }
 
 
+
+class Buffer {
+  arr: Float32Array[];
+  count: number;
+  offset: number;
+  poolIndex: number;
+  numPoints: number;
+
+  constructor() {
+    this.arr = [];
+    this.arr.push(new Float32Array(2048)); // Start with one array
+    this.count = 0;  // Tracks the current index in the current Float32Array
+    this.offset = 8; // Each point takes 8 slots in the array
+    this.poolIndex = 0; // Which Float32Array in arr we are using
+    this.numPoints = 0; // Total points stored in the Buffer
+  }
+
+  addPoint(x: number, y: number, r: number, g: number, b: number, a: number, size: number, shape: number) {
+    console.log(this.arr)
+    //we need to extend the array
+    if (this.count && this.count % 2040 == 0) {
+      this.poolIndex++;
+      this.arr.push(new Float32Array(2048));
+      this.count = 0;
+    }
+    this.arr[this.poolIndex][this.count] = x;
+    this.arr[this.poolIndex][this.count + 1] = y;
+    this.arr[this.poolIndex][this.count + 2] = r;
+    this.arr[this.poolIndex][this.count + 3] = g;
+    this.arr[this.poolIndex][this.count + 4] = b;
+    this.arr[this.poolIndex][this.count + 5] = a;
+    this.arr[this.poolIndex][this.count + 6] = size;
+    this.arr[this.poolIndex][this.count + 7] = shape;
+
+    this.count += this.offset;
+    this.numPoints++;
+  }
+
+  getLastPoint() {
+    if (this.count === 0) {
+      return null;
+    }
+
+    const baseIndex = this.count - this.offset;
+    return {
+      x: this.arr[this.poolIndex][baseIndex],
+      y: this.arr[this.poolIndex][baseIndex + 1],
+      r: this.arr[this.poolIndex][baseIndex + 2],
+      g: this.arr[this.poolIndex][baseIndex + 3],
+      b: this.arr[this.poolIndex][baseIndex + 4],
+      a: this.arr[this.poolIndex][baseIndex + 5],
+      size: this.arr[this.poolIndex][baseIndex + 6],
+      shape: this.arr[this.poolIndex][baseIndex + 7]
+    };
+  }
+
+  clear() {
+    this.arr = [new Float32Array(2048)]; // Reset the array holding the points
+    this.count = 0;
+    this.poolIndex = 0;
+    this.numPoints = 0;
+  }
+
+  // Add an iterator
+  [Symbol.iterator]() {
+    let index = 0;
+    let poolIndex = 0;
+    let numPointsIterated = 0;
+
+    return {
+      next: () => {
+        if (numPointsIterated >= this.numPoints) {
+          return { done: true };
+        }
+
+        if (index === 256) {  // When we reach the end of the current array
+          poolIndex++;
+          index = 0;
+        }
+
+        const baseIndex = index * this.offset;
+        let value: Point = {
+          x: this.arr[poolIndex][baseIndex],
+          y: this.arr[poolIndex][baseIndex + 1],
+          r: this.arr[poolIndex][baseIndex + 2],
+          g: this.arr[poolIndex][baseIndex + 3],
+          b: this.arr[poolIndex][baseIndex + 4],
+          a: this.arr[poolIndex][baseIndex + 5],
+          size: this.arr[poolIndex][baseIndex + 6],
+          shape: this.arr[poolIndex][baseIndex + 7]
+        };
+
+        index++;
+        numPointsIterated++;
+
+        return { value, done: false };
+      }
+    };
+  }
+
+}
+
+const canvas = document.getElementById('webgl') as HTMLCanvasElement;
+if (!canvas) {
+  throw new Error('Failed to get canvas element');
+}
+const gl = initWebGL(canvas);
+
+const config = initUI();
+
+const program = createProgram(gl);
+
+
+
+let isDrawing = false;
+
+
+
+
+
+
+
 class Paint {
   gl: WebGLRenderingContext;
   program: WebGLProgram;
@@ -45,6 +152,7 @@ class Paint {
   u_FragColor: WebGLUniformLocation;
   u_Size: WebGLUniformLocation;
   offset: number;
+  buff: Buffer = new Buffer();
 
   constructor(gl: WebGLRenderingContext, program: WebGLProgram) {
     this.gl = gl;
@@ -63,7 +171,7 @@ class Paint {
     console.log(this.u_FragColor);
     console.log(this.u_Size);
     console.log(this.a_Position);
-    gl.clearColor(1,1,1, 1.0);
+    gl.clearColor(1, 1, 1, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     this.offset = 8;
@@ -72,19 +180,7 @@ class Paint {
   }
 
   addPoint(point: Point) {
-    const { x, y, r, g, b, a, size, shape } = point;
-    this.points[this.numPoints * this.offset] = x;
-    this.points[this.numPoints * this.offset + 1] = y;
-    this.points[this.numPoints * this.offset + 2] = r;
-    this.points[this.numPoints * this.offset + 3] = g;
-    this.points[this.numPoints * this.offset + 4] = b;
-    this.points[this.numPoints * this.offset + 5] = a;
-    this.points[this.numPoints * this.offset + 6] = size;
-    this.points[this.numPoints * this.offset + 7] = shape;
-    this.numPoints++;
-
-
-    console.log(this.points.slice(0, this.numPoints * this.offset));
+    this.buff.addPoint(point.x, point.y, point.r, point.g, point.b, point.a, point.size, point.shape);
   }
 
   reset() {
@@ -94,25 +190,17 @@ class Paint {
   }
 
   draw() {
-    this.gl.clearColor(1,1,1,1);
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+    // this.gl.clearColor(1, 1, 1, 1);
+    // this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
-    for (let i = 0; i < this.numPoints; i++) {
-      this.drawPoint({
-        x: this.points[i * this.offset],
-        y: this.points[i * this.offset + 1],
-        r: this.points[i * this.offset + 2],
-        g: this.points[i * this.offset + 3],
-        b: this.points[i * this.offset + 4],
-        a: this.points[i * this.offset + 5],
-        size: this.points[i * this.offset + 6],
-        shape: this.points[i * this.offset + 7]
-      });
+    if (this.buff.numPoints > 0) {
+      // Only draw the most recent point
+      const lastPoint = this.buff.getLastPoint();
+      this.drawPoint(lastPoint as Point);
     }
   }
   drawSquare(point: Point) {
-    const { x, y, r, g, b, a, size, shape} = point;
-    console.log({ x, y, r, g, b, a, size, shape});
+    const { x, y, r, g, b, a, size, shape } = point;
 
     this.gl.vertexAttrib3f(this.a_Position, x, y, 0.0);
     this.gl.uniform4f(this.u_FragColor, r, g, b, a);
@@ -121,29 +209,41 @@ class Paint {
 
     const buff = this.gl.createBuffer();
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buff);
-    this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array([
-      x, y, 0.0,
-      x + size, y, 0.0,
-      x, y + size, 0.0,
-      x + size, y, 0.0,
-      x, y + size, 0.0,
-      x + size, y + size, 0.0
-    ]), this.gl.DYNAMIC_DRAW);
-    this.gl.vertexAttribPointer(this.a_Position, 2, this.gl.FLOAT, false, 0, 0);
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buff);
 
+    // Calculate half the size to center the square around (x, y)
+    const halfSize = size / 2;
+
+    // Specify vertices to form two triangles that create a square
+    const vertices = new Float32Array([
+      x - halfSize, y - halfSize,  // First triangle
+      x + halfSize, y - halfSize,
+      x - halfSize, y + halfSize,
+      x + halfSize, y - halfSize,  // Second triangle
+      x + halfSize, y + halfSize,
+      x - halfSize, y + halfSize
+    ]);
+
+    // Load vertices into the buffer
+    this.gl.bufferData(this.gl.ARRAY_BUFFER, vertices, this.gl.DYNAMIC_DRAW);
+
+    // Set up and enable the vertex attribute pointer
+    this.gl.vertexAttribPointer(this.a_Position, 2, this.gl.FLOAT, false, 0, 0);
     this.gl.enableVertexAttribArray(this.a_Position);
-    this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+
+    // Draw the square using two triangles
+    this.gl.drawArrays(this.gl.TRIANGLES, 0, 6); // 6 vertices (3 per triangle * 2)
   }
   drawCircle(point: Point) {
-    const { x, y, r, g, b, a, size, shape} = point;
-    console.log({ x, y, r, g, b, a, size, shape});
+    const { x, y, r, g, b, a, size, shape } = point;
+    console.log({ x, y, r, g, b, a, size, shape });
 
     this.gl.vertexAttrib3f(this.a_Position, x, y, 0.0);
     this.gl.uniform4f(this.u_FragColor, r, g, b, a);
     this.gl.uniform1f(this.u_Size, size);
 
     const buff = this.gl.createBuffer();
-    if(!buff) throw new Error('Failed to create buffer');
+    if (!buff) throw new Error('Failed to create buffer');
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buff);
     this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array([
       x, y, 0.0,
@@ -175,38 +275,39 @@ const paint = new Paint(gl, program);
 canvas.addEventListener('mousedown', function (event) {
   isDrawing = true;
   const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-  const point = {
-    x,
-    y,
-    r: parseFloat(config.color[0].value) / 100,
-    g: parseFloat(config.color[1].value) / 100,
-    b: parseFloat(config.color[2].value) / 100,
-    a: parseFloat(config.color[3].value) / 100,
-    size: parseFloat(config.size.value) / 100,
-    shape: parseFloat(config.shape.value) as Shape
-  };
-  paint.addPoint(point);
+  let x = event.clientX; // x coordinate of a mouse pointer
+  let y = event.clientY; // y coordinate of a mouse pointer
+
+  // Convert the x and y coordinates to WebGL coordinates 
+  x = ((x - rect.left) - canvas.width / 2) / (canvas.width / 2);
+  y = (canvas.height / 2 - (y - rect.top)) / (canvas.height / 2);
+
+  const r = parseFloat(config.color[0].value) / 100;
+  const g = parseFloat(config.color[1].value) / 100;
+  const b = parseFloat(config.color[2].value) / 100;
+  const a = parseFloat(config.color[3].value) / 100;
+  const size = parseFloat(config.size.value) / 100;
+  const shape = parseFloat(config.shape.value) as Shape;
+  paint.buff.addPoint(x, y, r, g, b, a, size, shape);
   paint.draw();
 });
 
 canvas.addEventListener('mousemove', function (event) {
   if (isDrawing) {
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const point = {
-      x,
-      y,
-      r: parseFloat(config.color[0].value) / 100,
-      g: parseFloat(config.color[1].value) / 100,
-      b: parseFloat(config.color[2].value) / 100,
-      a: parseFloat(config.color[3].value) / 100,
-      size: parseFloat(config.size.value) ,
-      shape: parseInt(config.shape.value) as Shape
-    };
-    paint.addPoint(point);
+    let x = event.clientX;
+    let y = event.clientY;
+
+    x = ((x - rect.left) - canvas.width / 2) / (canvas.width / 2);
+    y = (canvas.height / 2 - (y - rect.top)) / (canvas.height / 2);
+
+    const r = parseFloat(config.color[0].value) / 100;
+    const g = parseFloat(config.color[1].value) / 100;
+    const b = parseFloat(config.color[2].value) / 100;
+    const a = parseFloat(config.color[3].value) / 100;
+    const size = parseFloat(config.size.value) / 100;
+    const shape = parseFloat(config.shape.value) as Shape;
+    paint.buff.addPoint(x, y, r, g, b, a, size, shape);
     paint.draw();
   }
 });
@@ -215,7 +316,12 @@ canvas.addEventListener('mouseup', function () {
   isDrawing = false;
 });
 
-config.clear.addEventListener('click', function () {
+config.clear.addEventListener('mousedown', function () {
+
+  gl.clearColor(1, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  console.log('clear');
   paint.numPoints = 0;
+  paint.buff.clear();
   paint.draw();
 });
