@@ -63,7 +63,7 @@ class Paint {
     console.log(this.u_FragColor);
     console.log(this.u_Size);
     console.log(this.a_Position);
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clearColor(1,1,1, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     this.offset = 8;
@@ -94,6 +94,7 @@ class Paint {
   }
 
   draw() {
+    this.gl.clearColor(1,1,1,1);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
     for (let i = 0; i < this.numPoints; i++) {
@@ -110,8 +111,8 @@ class Paint {
     }
   }
   drawSquare(point: Point) {
-    const { x, y, r, g, b, a, size } = point;
-    console.log({ x, y, r, g, b, a, size });
+    const { x, y, r, g, b, a, size, shape} = point;
+    console.log({ x, y, r, g, b, a, size, shape});
 
     this.gl.vertexAttrib3f(this.a_Position, x, y, 0.0);
     this.gl.uniform4f(this.u_FragColor, r, g, b, a);
@@ -131,16 +132,18 @@ class Paint {
     this.gl.vertexAttribPointer(this.a_Position, 2, this.gl.FLOAT, false, 0, 0);
 
     this.gl.enableVertexAttribArray(this.a_Position);
-    this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
+    this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
   }
   drawCircle(point: Point) {
-    const { x, y, r, g, b, a, size } = point;
+    const { x, y, r, g, b, a, size, shape} = point;
+    console.log({ x, y, r, g, b, a, size, shape});
 
     this.gl.vertexAttrib3f(this.a_Position, x, y, 0.0);
     this.gl.uniform4f(this.u_FragColor, r, g, b, a);
     this.gl.uniform1f(this.u_Size, size);
 
     const buff = this.gl.createBuffer();
+    if(!buff) throw new Error('Failed to create buffer');
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buff);
     this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array([
       x, y, 0.0,
@@ -153,9 +156,7 @@ class Paint {
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
   }
   drawPoint(point: Point) {
-    // @ts-ignore
-    const { x, y, r, g, b, a, size, shape } = point;
-    switch (shape) {
+    switch (point.shape) {
       case Shape.SQUARE:
         this.drawSquare(point);
         break;
@@ -202,7 +203,7 @@ canvas.addEventListener('mousemove', function (event) {
       g: parseFloat(config.color[1].value) / 100,
       b: parseFloat(config.color[2].value) / 100,
       a: parseFloat(config.color[3].value) / 100,
-      size: parseFloat(config.size.value) / 100,
+      size: parseFloat(config.size.value) ,
       shape: parseInt(config.shape.value) as Shape
     };
     paint.addPoint(point);
