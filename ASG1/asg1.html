@@ -2,10 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vite + TS</title>
-    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="app">
@@ -16,19 +14,26 @@
         Green:<input type="range" min="0" max="100" value="50" id="greenSlider"/> <br>
         Blue:<input type="range" min="0" max="100" value="50" id="blueSlider"/> <br>
         Alpha:<input type="range" min="0" max="100" value="100" id="alphaSlider"/> <br>
-        Brush Size:<input type="range" min="1" max="10" value="1" id="brushSize"/> <br>
+        Brush Size:<input type="range"  min="1" max="10" value="1" id="brushSize"/> <br>
         Brush Type:
         <select id="brushType">
-          <option value="1">Square</option>
-          <option value="2">Circle</option>
-          <option value="3">Triangle</option>
+          <option value="0">Square</option>
+          <option value="1">Circle</option>
+          <option value="2">Triangle</option>
         </select>
         <button id="clearButton">Clear</button>
       </p>
+
+
+      <script src="./lib/webgl-utils.js"></script>
+   <script src="./lib/webgl-debug.js"></script>
+   <script src="./lib/cuon-utils.js"></script>
+   <script src="./lib/cuon-matrix-cse160.js"></script>
+   <script type=text/javascript src="./Buffer.js"></script>
+   <script type=text/javascript src="./Point.js"></script>
+   <script type=text/javascript src="./asg1.js"></script>
+   <script type=text/javascript src="./Triangle.js"></script>
         
-
-
     </div>
-    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
