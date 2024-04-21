@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+      "target": "es6",
+      "module": "none",
+      "checkJs": true,
+      "lib": ["dom", "es6"],
+      "allowJs": true
+    },
+    "include": [
+      "./**/*"
+    ],
+    "exclude": [
+      "node_modules"
+    ]
+  }
+  

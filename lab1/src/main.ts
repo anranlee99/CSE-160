@@ -1,210 +1,175 @@
-import { createProgram, initUI, initWebGL } from './utils';
-enum Shape {
-  SQUARE = 1,
-  TRIANGLE = 2,
-  CIRCLE = 3,
-};
-interface Point {
-  x: number;
-  y: number;
-  r: number;
-  g: number;
-  b: number;
-  a: number;
-  size: number;
-  shape: Shape;
-}
-
-interface Vertex3 {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  x3: number;
-  y3: number;
-}
-
-
-
-class Buffer {
-  arr: Float32Array[];
-  bytesPerPool: number;
-  count: number;
-  offset: number;
-  poolIndex: number;
-  length: number;
-  /**
-   * 
-   * @param element_size The number of floats per element
-   */
-  constructor(element_size: number ) {
-    this.bytesPerPool = 4 * element_size ; // 256
-    this.arr = [];
-    // 2048 log 8
-    this.arr.push(new Float32Array()); // Start with one array
-    this.count = 0;  // Tracks the current index in the current Float32Array
-    this.offset = element_size; // Each point takes 8 slots in the array
-    this.poolIndex = 0; // Which Float32Array in arr we are using
-    this.length = 0; // Total points stored in the Buffer
+import { createProgram, initWebGL, getGLColor} from './utils';
+import { Matrix4 } from './lib/cuon';
+const VSHADER_SOURCE = `
+  attribute vec2 aPosition;
+  uniform mat4 uModelMatrix;
+  void main() {
+    gl_Position = uModelMatrix * vec4(aPosition, 0.0, 1.0);
   }
+  `;
 
-  addPoint(element: number[]) {
-    //we need to extend the array
-    if(element.length != this.offset) {
-      throw new Error('Invalid number of elements');
-    }
-    if (this.count && this.count % 2040 == 0) {
-      this.poolIndex++;
-      this.arr.push(new Float32Array(2048));
-      this.count = 0;
-    }
-    this.arr[this.poolIndex][this.count] = x;
-    this.arr[this.poolIndex][this.count + 1] = y;
-    this.arr[this.poolIndex][this.count + 2] = r;
-    this.arr[this.poolIndex][this.count + 3] = g;
-    this.arr[this.poolIndex][this.count + 4] = b;
-    this.arr[this.poolIndex][this.count + 5] = a;
-    this.arr[this.poolIndex][this.count + 6] = size;
-    this.arr[this.poolIndex][this.count + 7] = shape;
-
-    this.count += this.offset;
-    this.length++;
+// Fragment shader program
+const FSHADER_SOURCE = `
+  #ifdef GL_ES
+  precision mediump float;
+  #endif
+  uniform vec4 u_FragColor;
+  void main() {
+    gl_FragColor = u_FragColor;
   }
-
-  getLastPoint() {
-    if (this.count === 0) {
-      return null;
-    }
-
-    const baseIndex = this.count - this.offset;
-    return {
-      x: this.arr[this.poolIndex][baseIndex],
-      y: this.arr[this.poolIndex][baseIndex + 1],
-      r: this.arr[this.poolIndex][baseIndex + 2],
-      g: this.arr[this.poolIndex][baseIndex + 3],
-      b: this.arr[this.poolIndex][baseIndex + 4],
-      a: this.arr[this.poolIndex][baseIndex + 5],
-      size: this.arr[this.poolIndex][baseIndex + 6],
-      shape: this.arr[this.poolIndex][baseIndex + 7]
-    };
-  }
-
-  removeLastPoint() {
-    if (this.count === 0) {
-      return;
-    }
-    this.count -= this.offset;
-    this.length--;
-  }
-
-  clear() {
-    this.arr = [new Float32Array(2048)]; // Reset the array holding the points
-    this.count = 0;
-    this.poolIndex = 0;
-    this.length = 0;
-  }
-
-  // Add an iterator
-  [Symbol.iterator]() {
-    let index = 0;
-    let poolIndex = 0;
-    let numPointsIterated = 0;
-
-    return {
-      next: () => {
-        if (numPointsIterated >= this.length) {
-          return { done: true };
-        }
-
-        if (index === 256) {  // When we reach the end of the current array
-          poolIndex++;
-          index = 0;
-        }
-
-        const baseIndex = index * this.offset;
-        let value: Point = {
-          x: this.arr[poolIndex][baseIndex],
-          y: this.arr[poolIndex][baseIndex + 1],
-          r: this.arr[poolIndex][baseIndex + 2],
-          g: this.arr[poolIndex][baseIndex + 3],
-          b: this.arr[poolIndex][baseIndex + 4],
-          a: this.arr[poolIndex][baseIndex + 5],
-          size: this.arr[poolIndex][baseIndex + 6],
-          shape: this.arr[poolIndex][baseIndex + 7]
-        };
-
-        index++;
-        numPointsIterated++;
-
-        return { value, done: false };
-      }
-    };
-  }
-
-}
-
+  `;
 const canvas = document.getElementById('webgl') as HTMLCanvasElement;
 if (!canvas) {
   throw new Error('Failed to get canvas element');
 }
 const gl = initWebGL(canvas);
-const program = createProgram(gl);
+const program = createProgram(gl, VSHADER_SOURCE, FSHADER_SOURCE);
+
+gl.clearColor(0.2, 0.2, 0.2, 1.0);
+
+gl.clear(gl.COLOR_BUFFER_BIT);
+
+const vertices = new Float32Array([-0.5, -0.5, 0.5, -0.5, -0.5, 0.5]);
+
+const vertexBuffer = gl.createBuffer();
+if (!vertexBuffer) {
+  console.log("Failed to create the buffer object");
+}
+
+gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+const aPosPtr = gl.getAttribLocation(program, "aPosition");
+
+if (aPosPtr < 0) {
+  console.error("Could not find aPosition ptr");
+}
+
+gl.vertexAttribPointer(aPosPtr, 2, gl.FLOAT, false, 0, 0);
+
+gl.enableVertexAttribArray(aPosPtr);
+
+function drawSpaceship(gl: WebGLRenderingContext, program: WebGLProgram, source: Matrix4) {
+  const uModelMatrixPtr = gl.getUniformLocation(program, "uModelMatrix");
+  const aColorPtr = gl.getUniformLocation(program, "u_FragColor");
+
+  let M1 = new Matrix4(source);
+
+  //head
+
+  M1.translate(0, 0.5, 0);
+  M1.rotate(225, 0, 0, 1);
+
+  // M1.translate(0, 0.25,0)
+  M1.scale(Math.SQRT1_2, Math.SQRT1_2, 1)
+  let color = getGLColor(254, 112, 99, 1);
+  gl.uniform4f(aColorPtr, color[0], color[1], color[2], color[3]);
+  gl.uniformMatrix4fv(uModelMatrixPtr, false, M1.elements);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  
+  //body left
+  M1 = new Matrix4(source);
+  M1.rotate(180, 0, 0, 1);
+
+  color = getGLColor(254, 165, 93, 1);
+  gl.uniform4f(aColorPtr, color[0], color[1], color[2], color[3]);
+  gl.uniformMatrix4fv(uModelMatrixPtr, false, M1.elements);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  
+  //body right
+  M1 = new Matrix4(source);
+
+  color = getGLColor(0, 215, 173, 1);
+  gl.uniform4f(aColorPtr, color[0], color[1], color[2], color[3]);
+  gl.uniformMatrix4fv(uModelMatrixPtr, false, M1.elements);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  
+  
+  //exhaust pipe thing
+  M1 = new Matrix4(source);
+
+  M1.scale(0.5, 0.5, 1);
+  M1.translate(0, -1.5, 0);
+  color = getGLColor(249, 238, 63, 1);
+  
+  gl.uniform4f(aColorPtr, color[0], color[1], color[2], color[3]);
+  gl.uniformMatrix4fv(uModelMatrixPtr, false, M1.elements);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  
+  M1.rotate(180, 0, 0, 1);
+  gl.uniform4f(aColorPtr, color[0], color[1], color[2], color[3]);
+  gl.uniformMatrix4fv(uModelMatrixPtr, false, M1.elements);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  
+  
+  //wings
+  M1.rotate(180, 0, 0, 1); 
+  M1.translate(-0.5, -0.5, 0);
+  M1.translate(0, 1-Math.SQRT1_2, 0);
+  M1.rotate(-45, 0, 0, 1); 
 
 
-class Paint {
-  gl: WebGLRenderingContext;
-  program: WebGLProgram;
-  points: Float32Array = new Float32Array(1000);
+  color = getGLColor(164, 72, 212, 1);
+  gl.uniform4f(aColorPtr, color[0], color[1], color[2], color[3]);
+  gl.uniformMatrix4fv(uModelMatrixPtr, false, M1.elements);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  
+  
+  M1.translate(1/2, -1/2,0);
+  M1.rotate(180, 0, 0, 1);
+  M1.translate(1/2,1/2,0);
 
-  a_Position: number;
-  buff: Buffer = new Buffer();
-  redoBuff: Buffer = new Buffer();
+  color = getGLColor(168, 110, 107, 1);
+  gl.uniform4f(aColorPtr, color[0], color[1], color[2], color[3]);
+  gl.uniformMatrix4fv(uModelMatrixPtr, false, M1.elements);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  
 
-  constructor(gl: WebGLRenderingContext, program: WebGLProgram) {
-    this.gl = gl;
-    this.program = program;
+  M1.translate(1/2, -1/2,0);
+  M1.rotate(180, 0, 0, 1);
+  M1.translate(1/2,1/2,0);
 
-    this.a_Position = this.gl.getAttribLocation(this.program, 'aPosition');
-    if (this.a_Position < 0) throw new Error('Failed to get attribute location');
+  M1.translate(Math.SQRT1_2,Math.SQRT1_2,0);
+  M1.rotate(180, 0, 0, 1);
 
-    gl.clearColor(0,0,0, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-  }
 
-  addPoint(point: Vertex3) {
-    this.buff.addPoint(point.x, point.y, point.r, point.g, point.b, point.a, point.size, point.shape);
-  }
+  color = getGLColor(0, 106, 170, 1);
+  gl.uniform4f(aColorPtr, color[0], color[1], color[2], color[3]);
+  gl.uniformMatrix4fv(uModelMatrixPtr, false, M1.elements);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  
+  M1.translate(-1/2, 1/2,0);
+  M1.rotate(180, 0, 0, 1);
+  M1.translate(1/2,1/2,0);
+  color = getGLColor(0, 106, 170, 1);
+  gl.uniform4f(aColorPtr, color[0], color[1], color[2], color[3]);
+  gl.uniformMatrix4fv(uModelMatrixPtr, false, M1.elements);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-  draw() {
-    if (this.buff.length > 0) {
-      // Only draw the most recent point
-      const lastPoint = this.buff.getLastPoint();
-      this.drawPoint(lastPoint as Point);
-    }
-  }
 
-  drawTriangle(point: Point) {
-
-  }
-
-  drawPoint(point: Point) {
-    switch (point.shape) {
-      case Shape.TRIANGLE:
-        this.drawTriangle(point);
-        break;
-    }
-  }
 
 }
 
+const M = new Matrix4();
+
+M.scale(0.2, 0.2, 1);
+M.translate(-2, -2, 0);
+M.rotate(-18, 0, 0, 1);
+
+drawSpaceship(gl, program, M);
+
+const M2 = new Matrix4();
+M2.scale(0.35, 0.35, 1);
+M2.translate(-.25, 1.5, 0);
+M2.rotate(-10, 0, 0, 1);
+drawSpaceship(gl, program, M2);
+
+const M3 = new Matrix4();
+M3.scale(0.25, 0.25, 1);
+M3.translate(2, -.5, 0);
+drawSpaceship(gl, program, M3);
 
 
 
-const paint = new Paint(gl, program);
-const pointArr = [];
-pointArr.push({ x: 0.0, y: 0.0, r: 1.0, g: 0.0, b: 0.0, a: 1.0, size: 0.1, shape: Shape.TRIANGLE });
 
-for (const point of pointArr) {
-  paint.addPoint(point);
-  paint.draw();
-}

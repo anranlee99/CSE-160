@@ -1,20 +1,4 @@
-const VSHADER_SOURCE = `
-  attribute vec2 aPosition;
-  void main() {
-    gl_Position = vec4(aPosition, 0.0, 1.0);
-  }
-  `;
-
-// Fragment shader program
-const FSHADER_SOURCE = `
-  #ifdef GL_ES
-  precision mediump float;
-  #endif
-  void main() {
-    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-  }
-  `;
-export function createProgram(gl: WebGLRenderingContext): WebGLProgram {
+export function createProgram(gl: WebGLRenderingContext, VSHADER_SOURCE: string, FSHADER_SOURCE: string): WebGLProgram {
   const vertexShader = gl.createShader(gl.VERTEX_SHADER);
   const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
   const program = gl.createProgram();
@@ -102,4 +86,8 @@ export function initUI(){
 
     return config;
 
+}
+
+export function getGLColor(r: number, g: number, b: number, a: number): number[]{
+    return [r/255, g/255, b/255, a];
 }
